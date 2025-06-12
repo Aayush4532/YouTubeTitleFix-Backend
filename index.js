@@ -6,21 +6,22 @@ import { getTranscript } from "./services/youtubeTranscriptService.js";
 import { generateTitleFromPrompt } from "./services/gemini.js";
 import cors from "cors";
 
-// Load environment variables
 configDotenv();
 
-// Initialize app
 const app = Express();
 const port = process.env.port || 3000;
 
-// Connect to DB
 connectDB();
 
-// Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type"],
+  })
+);
 app.use(Express.json());
 
-// Helper function to extract YouTube video ID
 const getYouTubeId = (url) => {
   try {
     const parsedUrl = new URL(url);
@@ -40,7 +41,6 @@ const getYouTubeId = (url) => {
   }
 };
 
-// API route to handle video link and generate AI title
 app.post("/api/video", async (req, res) => {
   const { videoLink } = req.body;
 
@@ -55,7 +55,6 @@ app.post("/api/video", async (req, res) => {
   }
 
   try {
-    // Check if already exists in DB
     const videoFind = await Video.findOne({ youtubeId });
 
     if (videoFind) {
@@ -65,7 +64,6 @@ app.post("/api/video", async (req, res) => {
       });
     }
 
-    // Get transcript
     const transcript = await getTranscript(youtubeId);
 
     if (!transcript) {
@@ -74,10 +72,14 @@ app.post("/api/video", async (req, res) => {
       });
     }
 
-    // Generate title from transcript
     const aiTitle = await generateTitleFromPrompt(transcript);
-
-    // Save to DB
+    if (aiTitle === "Error generating title" || !aiTitle) {
+      return res.status(201).json({
+        message: "Failed To Generate Title",
+        data: aiTitle,
+      });
+    }
+    
     const newVideo = new Video({
       youtubeId,
       AI_Title: aiTitle,
@@ -95,7 +97,6 @@ app.post("/api/video", async (req, res) => {
   }
 });
 
-// Start server
 app.listen(port, () => {
   console.log("🚀 Server is running on port", port);
 });
